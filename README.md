@@ -1,4 +1,4 @@
-# Real-Time Traffic Prediction
+# Real-Time Traffic Congestion Prediction
 
 This project provides a real-time traffic congestion prediction system using machine learning models (LSTM, GRU, Random Forest) and a FastAPI backend. It ingests live traffic data, processes it, and serves predictions via a REST API and a web dashboard.
 
@@ -83,4 +83,5 @@ See [notebooks/Realtime_Traffic_Predictor.ipynb](notebooks/Realtime_Traffic_Pred
 ---
 
 **Author:**  
+
 *Real-Time Traffic Prediction Project*
