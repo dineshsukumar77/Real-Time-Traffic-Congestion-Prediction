@@ -1,0 +1,14 @@
+fastapi==0.119.1
+uvicorn==0.38.0
+pandas==2.3.3
+numpy==2.3.4
+scikit-learn==1.7.2
+joblib==1.5.2
+kafka-python==2.2.15
+aiohttp==3.13.1
+python-dotenv==1.1.1
+pydantic==2.12.3
+tensorflow==2.20.0
+matplotlib==3.10.7
+pyspark==4.0.1
+# chartjs-adapter-date-fns
