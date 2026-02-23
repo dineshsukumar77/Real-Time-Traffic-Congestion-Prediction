@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Monitor - Live</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Google Sans', 'Segoe UI', sans-serif;
+            background: #202124;
+            color: #e8eaed;
+            overflow-x: hidden;
+        }
+
+        .top-bar {
+            background: #292a2d;
+            border-bottom: 1px solid #3c4043;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-icon {
+            font-size: 24px;
+        }
+
+        .live-badge {
+            background: #ea4335;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            animation: pulse 2s infinite;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .road-selector {
+            background: #292a2d;
+            border: 1px solid #3c4043;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .road-selector select {
+            background: #3c4043;
+            color: #e8eaed;
+            border: 1px solid #5f6368;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            flex: 1;
+            min-width: 200px;
+            transition: all 0.2s;
+        }
+
+        .road-selector select:hover {
+            border-color: #8ab4f8;
+        }
+
+        .road-selector button {
+            background: #8ab4f8;
+            color: #202124;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .road-selector button:hover {
+            background: #aecbfa;
+            transform: translateY(-1px);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: #292a2d;
+            border: 1px solid #3c4043;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #8ab4f8, #81c995);
+            transform: scaleX(0);
+            transition: transform 0.3s;
+        }
+
+        .stat-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .stat-card:hover {
+            border-color: #5f6368;
+            transform: translateY(-2px);
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: #9aa0a6;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .stat-change {
+            font-size: 14px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .change-up {
+            color: #81c995;
+            background: rgba(129, 201, 149, 0.15);
+        }
+
+        .change-down {
+            color: #f28b82;
+            background: rgba(242, 139, 130, 0.15);
+        }
+
+        .change-neutral {
+            color: #9aa0a6;
+            background: rgba(154, 160, 166, 0.15);
+        }
+
+        .chart-section {
+            background: #292a2d;
+            border: 1px solid #3c4043;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .chart-title {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .time-selector {
+            display: flex;
+            gap: 8px;
+            background: #3c4043;
+            padding: 4px;
+            border-radius: 8px;
+        }
+
+        .time-btn {
+            background: transparent;
+            border: none;
+            color: #9aa0a6;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .time-btn:hover {
+            background: #5f6368;
+            color: #e8eaed;
+        }
+
+        .time-btn.active {
+            background: #8ab4f8;
+            color: #202124;
+        }
+
+        .chart-canvas {
+            height: 350px !important;
+            position: relative;
+        }
+
+        .prediction-section {
+            background: #292a2d;
+            border: 1px solid #3c4043;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .prediction-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .model-selector {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .model-chip {
+            background: #3c4043;
+            color: #e8eaed;
+            border: 1px solid #5f6368;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .model-chip:hover {
+            border-color: #8ab4f8;
+            background: #5f6368;
+        }
+
+        .model-chip.active {
+            background: #8ab4f8;
+            color: #202124;
+            border-color: #8ab4f8;
+        }
+
+        .prediction-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .prediction-stat {
+            text-align: center;
+            padding: 16px;
+            background: #3c4043;
+            border-radius: 8px;
+        }
+
+        .prediction-stat-label {
+            font-size: 12px;
+            color: #9aa0a6;
+            margin-bottom: 8px;
+        }
+
+        .prediction-stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #8ab4f8;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(32, 33, 36, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #3c4043;
+            border-top-color: #8ab4f8;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .update-indicator {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #292a2d;
+            border: 1px solid #3c4043;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .update-indicator.active {
+            display: flex;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .prediction-canvas {
+            height: 300px !important;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-canvas {
+                height: 250px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="logo">
+            <span class="logo-icon">🚦</span>
+            <span>Traffic Monitor</span>
+        </div>
+        <div class="live-badge">
+            <div class="live-dot"></div>
+            LIVE
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="road-selector">
+            <select id="roadSelect">
+                <option value="">Select a road...</option>
+            </select>
+            <select id="modelSelect">
+                <option value="LSTM">LSTM</option>
+                <option value="GRU">GRU</option>
+                <option value="LSTM_GRU">LSTM+GRU</option>
+                <option value="GRU_LSTM">GRU+LSTM</option>
+                <option value="Random_Forest">Random Forest</option>
+            </select>
+            <button id="predictBtn">Predict Next 5min</button>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Speed</div>
+                <div class="stat-value">
+                    <span id="speedValue">--</span>
+                    <span style="font-size: 18px; color: #9aa0a6;">km/h</span>
+                </div>
+                <div class="stat-change change-neutral" id="speedChange">
+                    <span>--</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Congestion Index</div>
+                <div class="stat-value">
+                    <span id="congestionValue">--</span>
+                </div>
+                <div class="stat-change change-neutral" id="congestionChange">
+                    <span>--</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Status</div>
+                <div class="stat-value" style="font-size: 24px;" id="statusValue">
+                    --
+                </div>
+                <div class="stat-change change-neutral" id="trendValue">
+                    <span>--</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <div class="chart-header">
+                <div class="chart-title">Congestion Index</div>
+                <div class="time-selector">
+                    <button class="time-btn" data-hours="1">1H</button>
+                    <button class="time-btn active" data-hours="2">2H</button>
+                    <button class="time-btn" data-hours="4">4H</button>
+                    <button class="time-btn" data-hours="24">1D</button>
+                </div>
+            </div>
+            <canvas id="mainChart" class="chart-canvas"></canvas>
+        </div>
+
+        <div class="prediction-section" id="predictionSection" style="display: none;">
+            <div class="prediction-header">
+                <div class="chart-title">AI Prediction - Next 5 Minutes</div>
+            </div>
+            <canvas id="predictionChart" class="prediction-canvas"></canvas>
+            <div class="prediction-stats" id="predictionStats"></div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+    </div>
+
+    <div class="update-indicator" id="updateIndicator">
+        <div class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></div>
+        <span>Updating...</span>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let currentRoadId = '';
+        let mainChart = null;
+        let predictionChart = null;
+        let previousData = {};
+        let selectedHours = 2;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadRoads();
+            setupEventListeners();
+            setupWebSocket();
+            startAutoRefresh();
+        });
+
+        async function loadRoads() {
+            try {
+                const response = await fetch(`${API_BASE}/api/roads`);
+                const data = await response.json();
+                const select = document.getElementById('roadSelect');
+                
+                data.roads.forEach(road => {
+                    const option = document.createElement('option');
+                    option.value = road;
+                    option.textContent = road;
+                    select.appendChild(option);
+                });
+                
+                if (data.roads.length > 0) {
+                    select.value = data.roads[0];
+                    currentRoadId = data.roads[0];
+                    await updateDashboard();
+                }
+            } catch (error) {
+                console.error('Error loading roads:', error);
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('roadSelect').addEventListener('change', async (e) => {
+                currentRoadId = e.target.value;
+                if (currentRoadId) {
+                    await updateDashboard();
+                }
+            });
+
+            document.getElementById('predictBtn').addEventListener('click', predictNext5Min);
+
+            document.querySelectorAll('.time-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    selectedHours = parseInt(e.target.dataset.hours);
+                    updateDashboard();
+                });
+            });
+        }
+
+        function setupWebSocket() {
+            const ws = new WebSocket(`ws://localhost:8000/ws`);
+            
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                if (message.type === 'update' && currentRoadId) {
+                    const roadData = message.data.find(d => d.road_id === currentRoadId);
+                    if (roadData) {
+                        showUpdateIndicator();
+                        updateMetrics(roadData);
+                        addDataToChart(roadData);
+                    }
+                }
+            };
+
+            ws.onerror = (error) => console.error('WebSocket error:', error);
+            ws.onclose = () => setTimeout(setupWebSocket, 5000);
+        }
+
+        async function updateDashboard() {
+            if (!currentRoadId) return;
+
+            try {
+                console.log('Fetching data for:', currentRoadId);
+                
+                const currentResponse = await fetch(`${API_BASE}/api/current/${currentRoadId}`);
+                if (!currentResponse.ok) {
+                    console.error('Current data fetch failed:', currentResponse.status);
+                    return;
+                }
+                const currentData = await currentResponse.json();
+                console.log('Current data:', currentData);
+                updateMetrics(currentData);
+                
+                const historicalResponse = await fetch(`${API_BASE}/api/historical/${currentRoadId}?hours=${selectedHours}`);
+                if (!historicalResponse.ok) {
+                    console.error('Historical data fetch failed:', historicalResponse.status);
+                    return;
+                }
+                const historicalData = await historicalResponse.json();
+                console.log('Historical data:', historicalData);
+                
+                if (historicalData.data && historicalData.data.length > 0) {
+                    initializeChart(historicalData.data);
+                } else {
+                    console.warn('No historical data available');
+                }
+            } catch (error) {
+                console.error('Error updating dashboard:', error);
+            }
+        }
+
+        function updateMetrics(data) {
+            const speed = Math.round(data.avg_speed);
+            const congestion = data.avg_congestion_index.toFixed(3);
+            const level = data.congestion_level || getCongestionLevel(data.avg_congestion_index);
+            const trend = data.trend || 'stable';
+
+            // Update speed with animation
+            animateValue('speedValue', previousData.speed || 0, speed, 500);
+            updateChange('speedChange', previousData.speed, speed, 'km/h');
+
+            // Update congestion with animation
+            animateValue('congestionValue', previousData.congestion || 0, congestion, 500);
+            updateChange('congestionChange', previousData.congestion, congestion, '');
+
+            // Update status
+            document.getElementById('statusValue').textContent = level;
+            const trendEmoji = trend === 'increasing' ? '📈' : trend === 'decreasing' ? '📉' : '➡️';
+            document.getElementById('trendValue').innerHTML = `<span>${trendEmoji} ${trend}</span>`;
+
+            // Store for next comparison
+            previousData = { speed, congestion };
+        }
+
+        function animateValue(elementId, start, end, duration) {
+            const element = document.getElementById(elementId);
+            const range = end - start;
+            const increment = range / (duration / 16);
+            let current = start;
+
+            const timer = setInterval(() => {
+                current += increment;
+                if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
+                    current = end;
+                    clearInterval(timer);
+                }
+                element.textContent = typeof end === 'number' && end % 1 !== 0 ? 
+                    current.toFixed(3) : Math.round(current);
+            }, 16);
+        }
+
+        function updateChange(elementId, oldVal, newVal, suffix) {
+            const element = document.getElementById(elementId);
+            if (oldVal === undefined) {
+                element.innerHTML = '<span>--</span>';
+                return;
+            }
+
+            const change = newVal - oldVal;
+            const changeClass = change > 0 ? 'change-up' : change < 0 ? 'change-down' : 'change-neutral';
+            const arrow = change > 0 ? '▲' : change < 0 ? '▼' : '●';
+            
+            element.className = `stat-change ${changeClass}`;
+            element.innerHTML = `<span>${arrow} ${Math.abs(change).toFixed(2)}${suffix}</span>`;
+        }
+
+        function getCongestionLevel(index) {
+            if (index < 0.3) return 'Low';
+            if (index < 0.6) return 'Medium';
+            if (index < 0.8) return 'High';
+            return 'Severe';
+        }
+
+        function initializeChart(data) {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            
+            if (mainChart) mainChart.destroy();
+
+            // Check if data exists and has items
+            if (!data || data.length === 0) {
+                console.warn('No data available for chart');
+                return;
+            }
+
+            console.log('Chart data:', data); // Debug log
+
+            const labels = data.map(d => new Date(d.timestamp));
+            const congestionData = data.map(d => d.avg_congestion_index);
+
+            // Create gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, 350);
+            gradient.addColorStop(0, 'rgba(138, 180, 248, 0.3)');
+            gradient.addColorStop(1, 'rgba(138, 180, 248, 0.0)');
+
+            mainChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Congestion Index',
+                        data: congestionData,
+                        borderColor: '#8ab4f8',
+                        backgroundColor: gradient,
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: '#8ab4f8',
+                        pointHoverBorderColor: '#202124',
+                        pointHoverBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#292a2d',
+                            titleColor: '#e8eaed',
+                            bodyColor: '#e8eaed',
+                            borderColor: '#5f6368',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                                title: (items) => new Date(items[0].parsed.x).toLocaleString(),
+                                label: (item) => `Congestion: ${item.parsed.y.toFixed(3)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: selectedHours <= 2 ? 'minute' : 'hour',
+                                displayFormats: {
+                                    minute: 'HH:mm',
+                                    hour: 'HH:mm'
+                                }
+                            },
+                            ticks: { 
+                                color: '#9aa0a6',
+                                maxRotation: 0
+                            },
+                            grid: { 
+                                color: '#3c4043',
+                                drawBorder: false
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 1,
+                            ticks: { 
+                                color: '#9aa0a6',
+                                callback: (value) => value.toFixed(1)
+                            },
+                            grid: { 
+                                color: '#3c4043',
+                                drawBorder: false
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 750,
+                        easing: 'easeInOutQuart'
+                    }
+                }
+            });
+        }
+
+        function addDataToChart(newData) {
+            if (!mainChart) return;
+
+            const newLabel = new Date(newData.timestamp);
+            const newValue = newData.avg_congestion_index;
+
+            mainChart.data.labels.push(newLabel);
+            mainChart.data.datasets[0].data.push(newValue);
+
+            // Keep appropriate number of points based on time range
+            const maxPoints = selectedHours * 12; // 12 points per hour (5min intervals)
+            if (mainChart.data.labels.length > maxPoints) {
+                mainChart.data.labels.shift();
+                mainChart.data.datasets[0].data.shift();
+            }
+
+            mainChart.update('none');
+        }
+
+        async function predictNext5Min() {
+            const modelSelect = document.getElementById('modelSelect');
+            const predictBtn = document.getElementById('predictBtn');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            
+            if (!currentRoadId) {
+                alert('Please select a road first');
+                return;
+            }
+
+            loadingOverlay.classList.add('active');
+            predictBtn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/predict`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        road_id: currentRoadId,
+                        model_name: modelSelect.value
+                    })
+                });
+
+                const prediction = await response.json();
+                displayPrediction(prediction);
+            } catch (error) {
+                console.error('Error predicting:', error);
+                alert('Error making prediction. Please try again.');
+            } finally {
+                loadingOverlay.classList.remove('active');
+                predictBtn.disabled = false;
+            }
+        }
+
+        function displayPrediction(prediction) {
+            const section = document.getElementById('predictionSection');
+            section.style.display = 'block';
+
+            // Update stats
+            const statsHtml = `
+                <div class="prediction-stat">
+                    <div class="prediction-stat-label">Predicted Index</div>
+                    <div class="prediction-stat-value">${prediction.predicted_congestion_index.toFixed(3)}</div>
+                </div>
+                <div class="prediction-stat">
+                    <div class="prediction-stat-label">Confidence</div>
+                    <div class="prediction-stat-value">${(prediction.confidence_score * 100).toFixed(1)}%</div>
+                </div>
+                <div class="prediction-stat">
+                    <div class="prediction-stat-label">Current Index</div>
+                    <div class="prediction-stat-value">${prediction.current_congestion_index.toFixed(3)}</div>
+                </div>
+                <div class="prediction-stat">
+                    <div class="prediction-stat-label">Model</div>
+                    <div class="prediction-stat-value" style="font-size: 16px;">${prediction.model}</div>
+                </div>
+            `;
+            document.getElementById('predictionStats').innerHTML = statsHtml;
+
+            // Create prediction chart
+            const ctx = document.getElementById('predictionChart').getContext('2d');
+            
+            if (predictionChart) predictionChart.destroy();
+
+            const now = new Date(prediction.last_update);
+            const future = new Date(prediction.predicted_timestamp);
+
+            predictionChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [now, future],
+                    datasets: [
+                        {
+                            label: 'Current',
+                            data: [prediction.current_congestion_index, null],
+                            borderColor: '#8ab4f8',
+                            backgroundColor: '#8ab4f8',
+                            borderWidth: 3,
+                            pointRadius: 8,
+                            pointHoverRadius: 10,
+                            fill: false
+                        },
+                        {
+                            label: 'Predicted',
+                            data: [null, prediction.predicted_congestion_index],
+                            borderColor: '#81c995',
+                            backgroundColor: '#81c995',
+                            borderWidth: 3,
+                            borderDash: [8, 4],
+                            pointRadius: 8,
+                            pointHoverRadius: 10,
+                            fill: false
+                        },
+                        {
+                            label: 'Trend',
+                            data: [prediction.current_congestion_index, prediction.predicted_congestion_index],
+                            borderColor: 'rgba(138, 180, 248, 0.3)',
+                            borderWidth: 2,
+                            borderDash: [4, 4],
+                            pointRadius: 0,
+                            fill: true,
+                            backgroundColor: 'rgba(138, 180, 248, 0.1)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: '#e8eaed',
+                                font: { size: 13 },
+                                padding: 20,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#292a2d',
+                            titleColor: '#e8eaed',
+                            bodyColor: '#e8eaed',
+                            borderColor: '#5f6368',
+                            borderWidth: 1,
+                            padding: 12
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute',
+                                displayFormats: { minute: 'HH:mm' }
+                            },
+                            ticks: { color: '#9aa0a6' },
+                            grid: { color: '#3c4043', drawBorder: false }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 1,
+                            ticks: { color: '#9aa0a6' },
+                            grid: { color: '#3c4043', drawBorder: false }
+                        }
+                    },
+                    animation: {
+                        duration: 1500,
+                        easing: 'easeInOutQuart'
+                    }
+                }
+            });
+
+            section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function showUpdateIndicator() {
+            const indicator = document.getElementById('updateIndicator');
+            indicator.classList.add('active');
+            setTimeout(() => indicator.classList.remove('active'), 30000);
+        }
+
+        function startAutoRefresh() {
+            // Auto-refresh every 10 seconds
+            setInterval(() => {
+                if (currentRoadId) {
+                    updateDashboard();
+                }
+            }, 30000);
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (mainChart) mainChart.destroy();
+            if (predictionChart) predictionChart.destroy();
+        });
+    </script>
+</body>
+</html>
